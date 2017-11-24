@@ -3114,12 +3114,25 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   Item **arg= item->args, **arg_end= item->args + item->arg_count_field;
   uint old_length= result->length();
 
+  ulonglong *offset_limit= &item->copy_offset_limit;
+  ulonglong *row_limit = &item->copy_row_limit;
+  if (item->limit_clause && !(*row_limit))
+    return 1;
+
   if (item->no_appended)
     item->no_appended= FALSE;
   else
     result->append(*item->separator);
 
   tmp.length(0);
+
+  if (item->limit_clause && (*offset_limit))
+  {
+    item->row_count++;
+    item->no_appended= TRUE;
+    (*offset_limit)--;
+    return 0;
+  }
 
   for (; arg < arg_end; arg++)
   {
@@ -3150,6 +3163,8 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       result->append(*res);
   }
 
+  if (item->limit_clause)
+    (*row_limit)--;
   item->row_count++;
 
   /* stop if length of result more than max_length */
@@ -3198,7 +3213,8 @@ Item_func_group_concat::
 Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                        bool distinct_arg, List<Item> *select_list,
                        const SQL_I_List<ORDER> &order_list,
-                       String *separator_arg)
+                       String *separator_arg, bool limit_clause,
+                       Item *row_limit_arg, Item *offset_limit_arg)
   :Item_sum(thd), tmp_table_param(0), separator(separator_arg), tree(0),
    unique_filter(NULL), table(0),
    order(0), context(context_arg),
@@ -3207,7 +3223,9 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
    row_count(0),
    distinct(distinct_arg),
    warning_for_row(FALSE),
-   force_copy_fields(0), original(0)
+   force_copy_fields(0), row_limit(NULL),
+   offset_limit(NULL), limit_clause(limit_clause),
+   copy_offset_limit(0), copy_row_limit(0), original(0)
 {
   Item *item_select;
   Item **arg_ptr;
@@ -3249,6 +3267,11 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
   /* orig_args is only used for print() */
   orig_args= (Item**) (order + arg_count_order);
   memcpy(orig_args, args, sizeof(Item*) * arg_count);
+  if (limit_clause)
+  {
+    row_limit= row_limit_arg;
+    offset_limit= offset_limit_arg;
+  }
 }
 
 
@@ -3268,7 +3291,9 @@ Item_func_group_concat::Item_func_group_concat(THD *thd,
   warning_for_row(item->warning_for_row),
   always_null(item->always_null),
   force_copy_fields(item->force_copy_fields),
-  original(item)
+  row_limit(item->row_limit), offset_limit(item->offset_limit),
+  limit_clause(item->limit_clause),copy_offset_limit(item->copy_offset_limit),
+  copy_row_limit(item->copy_row_limit), original(item)
 {
   quick_group= item->quick_group;
   result.set_charset(collation.collation);
@@ -3363,6 +3388,10 @@ void Item_func_group_concat::clear()
   null_value= TRUE;
   warning_for_row= FALSE;
   no_appended= TRUE;
+  if (offset_limit)
+    copy_offset_limit= offset_limit->val_int();
+  if (row_limit)
+    copy_row_limit= row_limit->val_int();
   if (tree)
     reset_tree(tree);
   if (unique_filter)
