@@ -67,10 +67,10 @@ insert into tbl_b values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 connection master_1;
 SELECT sum(a.value), count(b.value2) FROM tbl_a a, tbl_b b WHERE a.value = b.value2 AND a.value = 5;
 sum(a.value)	count(b.value2)
-175	25
+5	1
 SELECT sum(a.value), count(b.value2) FROM tbl_a a, tbl_b b WHERE a.value = 5 and b.value2 = 5;
 sum(a.value)	count(b.value2)
-175	25
+5	1
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
 argument
@@ -86,10 +86,8 @@ SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
 argument
 select `value` from `auto_test_remote2`.`tbl_a` where `value` = 5
 select `value2` from `auto_test_remote2`.`tbl_b` where `value2` = 5
-select sum(t0.`value`) `sum(a.value)`,count(t1.`value2`) `count(b.value2)` from `auto_test_remote2`.`tbl_a` t0,`auto_test_remote2`.`tbl_b` t1
 select `value` from `auto_test_remote2`.`tbl_a` where `value` = 5
 select `value2` from `auto_test_remote2`.`tbl_b` where `value2` = 5
-select sum(t0.`value`) `sum(a.value)`,count(t1.`value2`) `count(b.value2)` from `auto_test_remote2`.`tbl_a` t0,`auto_test_remote2`.`tbl_b` t1
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
 SELECT value FROM tbl_a ORDER BY value;
 value
